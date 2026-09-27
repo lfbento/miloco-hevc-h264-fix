@@ -1,0 +1,29 @@
+# Exemplo mínimo — adicione estes volumes ao seu docker-compose do Miloco.
+# Substitua <hash> pelo hash real do bundle JS (muda a cada release):
+#   docker run --rm --entrypoint sh <image> -c 'ls /app/miloco_server/static/assets/js/'
+services:
+  miloco:
+    image: ghcr.nju.edu.cn/miiot/miloco:main
+    container_name: miloco
+    network_mode: host
+    environment:
+      TZ: ${TZ:-America/Sao_Paulo}
+      H264_FFMPEG_BIN: /usr/local/bin/ffmpeg
+    volumes:
+      - ./miloco:/app/miloco_server/.temp
+
+      # 1. transcoder HEVC -> H.264 (módulo novo)
+      - ./patches/h264_transcoder.py:/app/miloco_server/utils/h264_transcoder.py:ro
+
+      # 2. miot_service.py com o patch aplicado:
+      #      docker run --rm --entrypoint cat <image> /app/miloco_server/service/miot_service.py > patched/miot_service.py
+      #      patch patched/miot_service.py < patches/miot_service.patch
+      - ./patched/miot_service.py:/app/miloco_server/service/miot_service.py:ro
+
+      # 3. bundle do player patcheado (frontend/build_patch.py)
+      - ./frontend/dist/index-<hash>.js:/app/miloco_server/static/assets/js/index-<hash>.js:ro
+
+      # 4. ffmpeg estático com libx264
+      #    (ex.: https://johnvansickle.com/ffmpeg/ — copie o binário para ./bin/ffmpeg)
+      - ./bin/ffmpeg:/usr/local/bin/ffmpeg:ro
+    restart: unless-stopped

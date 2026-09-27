@@ -1,0 +1,36 @@
+--- /tmp/miot_service.orig.py	2026-09-26 21:07:31.365691459 -0300
++++ /home/bento/micam/patch/miot_service.py	2026-09-26 19:42:35.092013721 -0300
+@@ -21,6 +21,7 @@
+     ResourceNotFoundException
+ )
+ from miloco_server.utils.default_action import DefaultPresetActionManager
++from miloco_server.utils.h264_transcoder import replace_transcoder, release_transcoder
+ from miloco_server.mcp.mcp_client_manager import MCPClientManager
+ 
+ logger = logging.getLogger(__name__)
+@@ -302,10 +303,13 @@
+         try:
+             logger.info("Starting video stream: camera_id=%s, channel=%s", camera_id, channel)
+             if callback:
++                # Transcodifica HEVC -> H.264 antes de repassar ao WebSocket:
++                # o Chrome no Linux não decodifica HEVC (sem VAAPI no nouveau).
++                transcoder = await replace_transcoder(callback, camera_id, channel)
+                 await self._miot_proxy.start_camera_raw_stream(
+-                    camera_id, channel, callback)
++                    camera_id, channel, transcoder.on_frame)
+             else:
+-                logger.info("No callback function, only recording startup request: camera_id=%s", camera_id)
++                logger.info("No callback function, only recording startup request: %s", camera_id)
+         except Exception as e:
+             logger.error("Failed to start video stream: %s", e)
+             raise MiotServiceException(f"Failed to start video stream: {str(e)}") from e
+@@ -321,7 +325,8 @@
+             MiotServiceException: When stopping fails
+         """
+         try:
+-            logger.info("Stopping video stream: camera_id=%s", camera_id)
++            logger.info("Stopping video stream: camera_id=%s, channel=%s", camera_id, channel)
++            await release_transcoder(camera_id, channel)
+             await self._miot_proxy.stop_camera_raw_stream(camera_id, channel)
+             logger.info("Video stream stopped successfully: camera_id=%s", camera_id)
+         except Exception as e:
