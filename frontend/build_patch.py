@@ -58,6 +58,22 @@ def main():
     new_detect = '["zh","en","pt"].includes(r)?r:"pt"'
     assert js.count(old_detect) == 1, f"detect: esperado 1 ocorrência, achou {js.count(old_detect)}"
 
+    # 3b. CORREÇÃO DO IDIOMA PADRÃO: Ck() devolve Pd.getState().language antes
+    #     de chegar na detecção do navegador, e o estado inicial do store é
+    #     language:"zh" — então TODO navegador novo caía em chinês, mesmo com o
+    #     patch 3. O default do store agora detecta do navegador (pt por padrão).
+    #     Escolha explícita do usuário (persistida no store) continua valendo.
+    old_lang = '({language:"zh",themeMode:"light"'
+    new_lang = ('({language:(()=>{try{const r=(navigator.language||navigator.userLanguage||"").split("-")[0];'
+                'return["zh","en","pt"].includes(r)?r:"pt"}catch(e){return"pt"}})(),themeMode:"light"')
+    assert js.count(old_lang) == 1, f"store lang: esperado 1 ocorrência, achou {js.count(old_lang)}"
+
+    # 3c. fallback i18next: chave faltando no pt caía em "zh" (chinês) — melhor
+    #     cair no inglês (dicionário upstream completo) e só então no zh.
+    old_fb = 'fallbackLng:"zh"'
+    new_fb = 'fallbackLng:["en","zh"]'
+    assert js.count(old_fb) == 1, f"fallbackLng: esperado 1 ocorrência, achou {js.count(old_fb)}"
+
     # 4. player: com o transcoder H.264 no backend o codec só é conhecido depois
     #    do 1º frame — a configuração inicial é adiada pro farejador (4d)
     old_cfg = 'f.current.configure({codec:e,hardwareAcceleration:"prefer-hardware"})'
@@ -123,6 +139,8 @@ def main():
     js = js.replace(old_xk, new_xk)
     js = js.replace(old_opt, new_opt)
     js = js.replace(old_detect, new_detect)
+    js = js.replace(old_lang, new_lang)
+    js = js.replace(old_fb, new_fb)
     js = js.replace(old_cfg, new_cfg)
     js = js.replace(old_err, new_err)
     js = js.replace(old_catch, new_catch)
